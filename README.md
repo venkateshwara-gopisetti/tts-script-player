@@ -1,4 +1,10 @@
 # 🔊 TTS Script Player
+![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
+![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue?style=for-the-badge&logo=gnu&logoColor=white)
+![GitHub release](https://img.shields.io/github/v/release/venkateshwara-gopisetti/tts-script-player?style=for-the-badge&logo=github&logoColor=white)
+![Last Commit](https://img.shields.io/github/last-commit/venkateshwara-gopisetti/tts-script-player?style=for-the-badge&logo=github&logoColor=white)
+![Browser](https://img.shields.io/badge/Browser--Based-No%20Install-success?style=for-the-badge&logo=googlechrome&logoColor=white)
+
 
 A single-file, browser-based **Text-to-Speech script runner** — no installation, no server, no dependencies. Open `tts-player.html` in any modern browser and start speaking your script.
 
