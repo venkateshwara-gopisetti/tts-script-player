@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Script Speaker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0e0e10;
+    --surface: #18181c;
+    --surface2: #1e1e24;
+    --border: #2a2a32;
+    --accent: #c8f060;
+    --accent-dim: rgba(200,240,96,0.12);
+    --accent-glow: rgba(200,240,96,0.3);
+    --text: #e8e8ec;
+    --muted: #6b6b7a;
+    --playing: #60e0f0;
+    --playing-dim: rgba(96,224,240,0.08);
+    --danger: #f06060;
+    --timeline: #f0a060;
+    --timeline-dim: rgba(240,160,96,0.1);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ── Sticky top wrapper ───────────────────────────────────────────────── */
+  .sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    padding: 12px 20px 0;
+  }
+
+  /* ── Header ──────────────────────────────────────────────────────────── */
+  header {
+    width: 100%;
+    max-width: 860px;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 10px;
+  }
+  header h1 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.5rem;
+    letter-spacing: -0.03em;
+    color: var(--accent);
+  }
+  header span {
+    color: var(--muted);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* ── Voice / Rate / Pitch bar ─────────────────────────────────────────── */
+  .controls-bar {
+    width: 100%;
+    max-width: 860px;
+    display: flex;
+    gap: 12px;
+    margin-bottom: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .controls-bar label {
+    color: var(--muted);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+  }
+  select {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    outline: none;
+    cursor: pointer;
+    flex: 1;
+    min-width: 180px;
+  }
+  select:focus { border-color: var(--accent); }
+  .slider-group { display: flex; align-items: center; gap: 7px; }
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 72px; height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+  .range-val { color: var(--accent); font-size: 0.68rem; min-width: 30px; }
+
+  /* ── Timeline bar ────────────────────────────────────────────────────── */
+  .timeline-bar {
+    width: 100%;
+    max-width: 860px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0 12px;
+    flex-wrap: wrap;
+  }
+  .timeline-clock {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--timeline);
+    min-width: 64px;
+    letter-spacing: 0.04em;
+  }
+  .timeline-clock.running { animation: tick-pulse 1s ease-in-out infinite; }
+  @keyframes tick-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  .btn-timeline {
+    padding: 6px 14px;
+    background: var(--timeline-dim);
+    color: var(--timeline);
+    border: 1.5px solid var(--timeline);
+    border-radius: 7px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .btn-timeline:hover { background: rgba(240,160,96,0.2); }
+  .btn-timeline.active { background: var(--timeline); color: var(--bg); }
+
+  .btn-reset {
+    padding: 6px 12px;
+    background: transparent;
+    color: var(--timeline);
+    border: 1.5px solid var(--timeline);
+    border-radius: 7px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .btn-reset:hover { background: var(--timeline-dim); }
+
+  /* Stop — lives in the timeline bar */
+  .btn-stop-top {
+    padding: 6px 14px;
+    background: transparent;
+    color: var(--danger);
+    border: 1.5px solid var(--danger);
+    border-radius: 7px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .btn-stop-top:hover { background: rgba(240,96,96,0.1); }
+
+  .timeline-status {
+    flex: 1;
+    font-size: 0.68rem;
+    color: var(--muted);
+    letter-spacing: 0.03em;
+    min-width: 100px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .timeline-status.active { color: var(--playing); }
+  .timeline-status.tl-active { color: var(--timeline); }
+
+  /* ── Scrollable content area ─────────────────────────────────────────── */
+  .content {
+    width: 100%;
+    max-width: 860px;
+    padding: 16px 20px 100px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* ── Script cards ────────────────────────────────────────────────────── */
+  .lines-container {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .line-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: grid;
+    /* drag | idx | ts | textarea | actions */
+    grid-template-columns: 18px 34px 86px 1fr auto;
+    align-items: center;
+    gap: 0;
+    padding: 0 8px 0 4px;
+    min-height: 44px;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    position: relative;
+  }
+  .line-card.playing {
+    border-color: var(--playing);
+    background: var(--playing-dim);
+    box-shadow: 0 0 16px rgba(96,224,240,0.07);
+  }
+  .line-card.playing .line-index { color: var(--playing); }
+  .line-card.scheduled { border-left: 3px solid rgba(240,160,96,0.55); }
+  .line-card.drag-over { border-color: var(--accent); background: var(--accent-dim); }
+  .line-card.dragging  { opacity: 0.35; }
+
+  /* Drag handle */
+  .drag-handle {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; height: 100%; padding: 0 2px;
+    cursor: grab; opacity: 0.2; transition: opacity 0.15s; user-select: none;
+  }
+  .drag-handle:active { cursor: grabbing; }
+  .drag-handle span { display: block; width: 10px; height: 1.5px; background: var(--text); border-radius: 1px; }
+  .line-card:hover .drag-handle { opacity: 0.55; }
+
+  /* Editable index */
+  .line-index {
+    width: 30px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    text-align: center;
+    padding: 3px 1px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    -moz-appearance: textfield;
+  }
+  .line-index::-webkit-inner-spin-button,
+  .line-index::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .line-index:hover { border-color: var(--border); color: var(--text); }
+  .line-index:focus { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); cursor: text; }
+
+  /* Timestamp — icon left, text RIGHT aligned */
+  .ts-inner {
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+  }
+  .ts-icon {
+    position: absolute;
+    left: 12px;
+    font-size: 0.65rem;
+    pointer-events: none;
+    opacity: 0.4;
+    line-height: 1;
+  }
+  .ts-input {
+    width: 74px;
+    background: rgba(240,160,96,0.05);
+    border: 1px solid rgba(240,160,96,0.18);
+    border-radius: 5px;
+    color: var(--timeline);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    padding: 4px 6px 4px 20px;
+    outline: none;
+    text-align: right;
+    transition: border-color 0.15s, background 0.15s;
+    letter-spacing: 0.02em;
+  }
+  .ts-input:focus { border-color: var(--timeline); background: rgba(240,160,96,0.09); }
+  .ts-input::placeholder { color: rgba(240,160,96,0.28); text-align: right; }
+  .ts-input.has-value { border-color: rgba(240,160,96,0.5); }
+  .ts-input.invalid { color: var(--danger) !important; border-color: var(--danger) !important; }
+
+  /* Textarea */
+  .line-textarea {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.84rem;
+    line-height: 1.5;
+    resize: none;
+    padding: 10px 8px;
+    min-height: 44px;
+    width: 100%;
+    field-sizing: content;
+  }
+  .line-textarea::placeholder { color: var(--muted); }
+
+  /* Actions column */
+  .line-actions {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 0 2px;
+    flex-shrink: 0;
+  }
+
+  .btn-play {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 1.5px solid var(--accent);
+    background: var(--accent-dim);
+    color: var(--accent);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+  .btn-play:hover { background: var(--accent); color: var(--bg); box-shadow: 0 0 12px var(--accent-glow); transform: scale(1.08); }
+  .btn-play.active { background: var(--playing); border-color: var(--playing); color: var(--bg); animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 6px rgba(96,224,240,0.4); } 50% { box-shadow: 0 0 16px rgba(96,224,240,0.8); } }
+
+  .btn-move {
+    width: 22px; height: 22px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px;
+    transition: color 0.12s, border-color 0.12s;
+    flex-shrink: 0;
+  }
+  .btn-move:hover { color: var(--accent); border-color: var(--border); }
+  .btn-move:disabled { opacity: 0.15; cursor: default; }
+  .btn-move:disabled:hover { color: var(--muted); border-color: transparent; }
+
+  .btn-del {
+    width: 22px; height: 22px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+    transition: color 0.12s, border-color 0.12s;
+    flex-shrink: 0;
+  }
+  .btn-del:hover { color: var(--danger); border-color: rgba(240,96,96,0.3); }
+
+  /* Wave indicator — inline at end */
+  .wave {
+    display: none; align-items: center; gap: 2px;
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    pointer-events: none;
+  }
+  .wave.show { display: flex; }
+  .wave span { display: block; width: 2px; height: 10px; background: var(--playing); border-radius: 2px; animation: wave-bar 0.8s ease-in-out infinite; }
+  .wave span:nth-child(2) { animation-delay: 0.15s; }
+  .wave span:nth-child(3) { animation-delay: 0.3s; }
+  .wave span:nth-child(4) { animation-delay: 0.15s; }
+  @keyframes wave-bar { 0%,100% { transform: scaleY(0.3); opacity: 0.4; } 50% { transform: scaleY(1); opacity: 1; } }
+
+  /* ── Add line area ───────────────────────────────────────────────────── */
+  .add-area {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    align-items: flex-start;
+  }
+  .add-textarea {
+    flex: 1;
+    background: var(--surface);
+    border: 1.5px dashed var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.84rem;
+    line-height: 1.5;
+    padding: 10px 12px;
+    outline: none;
+    resize: none;
+    min-height: 48px;
+    transition: border-color 0.2s;
+  }
+  .add-textarea:focus { border-color: var(--accent); border-style: solid; }
+  .add-textarea::placeholder { color: var(--muted); }
+  .btn-add {
+    padding: 9px 16px;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: 7px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    white-space: nowrap;
+    align-self: flex-start;
+    margin-top: 0;
+  }
+  .btn-add:hover { opacity: 0.85; transform: translateY(-1px); }
+
+  /* ── Bottom bar ──────────────────────────────────────────────────────── */
+  .bottom-bar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+  .btn-secondary {
+    padding: 6px 14px;
+    background: transparent;
+    border-radius: 7px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 0.75rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn-clear {
+    color: var(--danger);
+    border: 1.5px solid var(--danger);
+    background: rgba(240,96,96,0.06);
+    transition: background 0.15s;
+  }
+  .btn-clear:hover { background: rgba(240,96,96,0.15); }
+  .btn-import {
+    color: var(--playing);
+    border: 1.5px solid var(--playing);
+    background: rgba(96,224,240,0.06);
+    transition: background 0.15s;
+  }
+  .btn-import:hover { background: rgba(96,224,240,0.12); }
+  .btn-export {
+    padding: 6px 14px;
+    background: transparent;
+    color: var(--accent);
+    border: 1.5px solid var(--accent);
+    border-radius: 7px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .btn-export:hover { background: var(--accent-dim); }
+
+  /* ── Tip ─────────────────────────────────────────────────────────────── */
+  .tip {
+    margin-top: 20px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .tip-header {
+    background: var(--surface2);
+    padding: 7px 14px;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .tip-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+  }
+  .tip-item {
+    padding: 12px 14px;
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .tip-item:last-child { border-right: none; }
+  .tip-icon {
+    font-size: 1rem;
+    line-height: 1;
+  }
+  .tip-label {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.7rem;
+    color: var(--text);
+    letter-spacing: 0.02em;
+  }
+  .tip-label.accent { color: var(--accent); }
+  .tip-label.timeline { color: var(--timeline); }
+  .tip-label.playing  { color: var(--playing); }
+  .tip-desc {
+    font-size: 0.67rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  code { background: rgba(255,255,255,0.07); padding: 1px 4px; border-radius: 3px; font-size: 0.88em; color: var(--text); }
+  @media (max-width: 580px) {
+    .tip-grid { grid-template-columns: 1fr; }
+    .tip-item { border-right: none; border-bottom: 1px solid var(--border); }
+    .tip-item:last-child { border-bottom: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Sticky top ─────────────────────────────────────────────────────── -->
+<div class="sticky-top">
+  <header>
+    <h1>Script Speaker</h1>
+    <span>TTS Script Runner</span>
+  </header>
+
+  <div class="controls-bar">
+    <label>Voice</label>
+    <select id="voiceSelect"><option value="">Loading voices...</option></select>
+    <div class="slider-group">
+      <label>Rate</label>
+      <input type="range" id="rateSlider" min="0.5" max="2" step="0.05" value="1">
+      <span class="range-val" id="rateVal">1.00</span>
+    </div>
+    <div class="slider-group">
+      <label>Pitch</label>
+      <input type="range" id="pitchSlider" min="0.5" max="2" step="0.05" value="1">
+      <span class="range-val" id="pitchVal">1.00</span>
+    </div>
+  </div>
+
+  <div class="timeline-bar">
+    <div class="timeline-clock" id="timelineClock">0:00.0</div>
+    <button class="btn-timeline" id="btnTimeline" onclick="toggleTimeline()">▶ Run Timeline</button>
+    <button class="btn-reset"   onclick="resetTimeline()">↺ Reset</button>
+    <button class="btn-stop-top" onclick="stopAll()">■ Stop</button>
+    <span class="timeline-status" id="statusText">Ready</span>
+  </div>
+</div>
+
+<!-- ── Scrollable content ─────────────────────────────────────────────── -->
+<div class="content">
+  <div class="lines-container" id="linesContainer"></div>
+
+  <div class="add-area">
+    <textarea class="add-textarea" id="addInput" placeholder="Type a new line... (Ctrl+Enter to add)" rows="2"></textarea>
+    <button class="btn-add" onclick="addLine()">+ Add Line</button>
+  </div>
+
+  <div class="bottom-bar">
+    <button class="btn-secondary btn-clear"  onclick="clearScript()">⊘ Clear Script</button>
+    <button class="btn-secondary btn-import" onclick="loadDemo()">★ Load Demo</button>
+    <button class="btn-secondary btn-import" onclick="document.getElementById('importInput').click()" style="color:var(--playing);border-color:var(--playing);">↑ Import JSON</button>
+    <input type="file" id="importInput" accept=".json" style="display:none" onchange="importJSON(this)">
+    <button class="btn-export" onclick="exportJSON()">↓ Export JSON</button>
+  </div>
+
+  <div class="tip">
+    <div class="tip-header">Quick Reference</div>
+    <div class="tip-grid">
+      <div class="tip-item">
+        <span class="tip-icon">🔌</span>
+        <span class="tip-label accent">Audio Routing</span>
+        <span class="tip-desc">Windows Volume Mixer → set this browser's output to <code>CABLE Input (VB-Audio)</code> so TTS plays as mic input into your recording app.</span>
+      </div>
+      <div class="tip-item">
+        <span class="tip-icon">⏱</span>
+        <span class="tip-label timeline">Timeline Mode</span>
+        <span class="tip-desc">Enter <code>M:SS</code> or <code>M:SS.s</code> on any card (e.g. <code>0:05</code>, <code>1:30.5</code>), then hit <code>▶ Run Timeline</code>. Lines fire at their timestamps automatically, like SRT subtitles driving audio.</span>
+      </div>
+      <div class="tip-item">
+        <span class="tip-icon">✦</span>
+        <span class="tip-label playing">Card Controls</span>
+        <span class="tip-desc">Edit the index number and press <code>Enter</code> to jump a card to any position. Drag the handle to reorder. Cards with timestamps get an orange left border.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const synth = window.speechSynthesis;
+  let currentUtterance = null;
+  let playingCard = null;
+  let lines = [];
+
+  // Store voice by NAME to survive onvoiceschanged re-fires
+  let selectedVoiceName = '';
+  const PREFERRED_VOICE = 'Microsoft Andrew Online (Natural) - English (United States)';
+
+  const voiceSelect = document.getElementById('voiceSelect');
+  const rateSlider  = document.getElementById('rateSlider');
+  const pitchSlider = document.getElementById('pitchSlider');
+  const rateVal     = document.getElementById('rateVal');
+  const pitchVal    = document.getElementById('pitchVal');
+
+  rateSlider.addEventListener('input',  () => rateVal.textContent  = parseFloat(rateSlider.value).toFixed(2));
+  pitchSlider.addEventListener('input', () => pitchVal.textContent = parseFloat(pitchSlider.value).toFixed(2));
+  voiceSelect.addEventListener('change', () => { selectedVoiceName = voiceSelect.value; });
+
+  function populateVoices() {
+    const voices = synth.getVoices();
+    if (!voices.length) return;
+    const seen = new Set();
+    const unique = voices.filter(v => { if (seen.has(v.name)) return false; seen.add(v.name); return true; });
+    const neural = unique.filter(v => v.name.toLowerCase().includes('online') || v.name.toLowerCase().includes('natural'));
+    const others = unique.filter(v => !neural.includes(v));
+    voiceSelect.innerHTML = '';
+    const addGroup = (label, list) => {
+      if (!list.length) return;
+      const grp = document.createElement('optgroup');
+      grp.label = label;
+      list.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.name;
+        opt.textContent = v.name;
+        grp.appendChild(opt);
+      });
+      voiceSelect.appendChild(grp);
+    };
+    addGroup('Neural / Online', neural);
+    addGroup('Standard', others);
+    const target = selectedVoiceName || PREFERRED_VOICE;
+    const match = unique.find(v => v.name === target) || unique.find(v => v.name.toLowerCase().includes('andrew'));
+    if (match) { voiceSelect.value = match.name; selectedVoiceName = match.name; }
+    else if (unique.length) { voiceSelect.value = unique[0].name; selectedVoiceName = unique[0].name; }
+  }
+
+  speechSynthesis.onvoiceschanged = populateVoices;
+  populateVoices();
+
+  // ─── Timestamp helpers ────────────────────────────────────────────────────
+
+  function parseTimestamp(ts) {
+    if (!ts || !ts.trim()) return null;
+    const m = ts.trim().match(/^(\d+):(\d{1,2})(?:\.(\d+))?$/);
+    if (!m) return null;
+    return parseInt(m[1]) * 60 + parseInt(m[2]) + (m[3] ? parseFloat('0.' + m[3]) : 0);
+  }
+
+  function formatTimestamp(secs) {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    const dec = s % 1 ? '.' + Math.round((s % 1) * 10) : '';
+    return `${m}:${String(Math.floor(s)).padStart(2,'0')}${dec}`;
+  }
+
+  // ─── Lines ────────────────────────────────────────────────────────────────
+
+  function addLine(textOverride, tsOverride) {
+    const input = document.getElementById('addInput');
+    const text = (textOverride !== undefined) ? textOverride : input.value.trim();
+    if (!text) return;
+    lines.push({ id: Date.now() + Math.random(), text, timestamp: tsOverride || '' });
+    if (textOverride === undefined) input.value = '';
+    renderLines();
+  }
+
+  function renderLines() {
+    const container = document.getElementById('linesContainer');
+    container.innerHTML = '';
+    lines.forEach((line, idx) => {
+      const card = document.createElement('div');
+      card.className = 'line-card' + (line.timestamp ? ' scheduled' : '');
+      card.id = `card-${line.id}`;
+      card.draggable = true;
+      card.dataset.id = line.id;
+
+      card.innerHTML = `
+        <div class="drag-handle" title="Drag to reorder"><span></span><span></span><span></span></div>
+        <input
+          class="line-index"
+          type="number" min="1" max="${lines.length}"
+          value="${idx + 1}"
+          title="Jump to position"
+          onkeydown="if(event.key==='Enter')this.blur();"
+          onblur="moveLineToIndex(${line.id}, this)"
+        />
+        <div class="ts-inner">
+          <span class="ts-icon">⏱</span>
+          <input class="ts-input ${line.timestamp ? 'has-value' : ''}"
+            type="text" placeholder="0:00"
+            value="${line.timestamp}"
+            title="Timestamp e.g. 0:05 or 1:30.5"
+            oninput="updateTimestamp(${line.id}, this.value, this)"
+            onblur="normalizeTimestamp(${line.id}, this)"
+          />
+        </div>
+        <textarea class="line-textarea" rows="1"
+          oninput="updateLine(${line.id}, this.value)"
+        >${line.text}</textarea>
+        <div class="line-actions">
+          <button class="btn-play" id="btn-${line.id}" onclick="playLine(${line.id})" title="Play">▶</button>
+          <button class="btn-move" onclick="moveLine(${line.id}, -1)" title="Move up"   ${idx === 0 ? 'disabled' : ''}>▲</button>
+          <button class="btn-move" onclick="moveLine(${line.id},  1)" title="Move down" ${idx === lines.length - 1 ? 'disabled' : ''}>▼</button>
+          <button class="btn-del"  onclick="deleteLine(${line.id})"   title="Delete">✕</button>
+        </div>
+        <div class="wave" id="wave-${line.id}">
+          <span></span><span></span><span></span><span></span>
+        </div>
+      `;
+
+      card.addEventListener('dragstart', onDragStart);
+      card.addEventListener('dragover',  onDragOver);
+      card.addEventListener('dragleave', onDragLeave);
+      card.addEventListener('drop',      onDrop);
+      card.addEventListener('dragend',   onDragEnd);
+      container.appendChild(card);
+    });
+  }
+
+  function updateLine(id, val) {
+    const line = lines.find(l => l.id === id);
+    if (line) line.text = val;
+  }
+
+  function updateTimestamp(id, val, input) {
+    const line = lines.find(l => l.id === id);
+    if (!line) return;
+    line.timestamp = val.trim();
+    input.classList.toggle('has-value', !!line.timestamp);
+    const card = document.getElementById(`card-${id}`);
+    if (card) card.classList.toggle('scheduled', !!line.timestamp);
+  }
+
+  function normalizeTimestamp(id, input) {
+    const raw = input.value.trim();
+    if (!raw) return;
+    const secs = parseTimestamp(raw);
+    if (secs !== null) {
+      input.value = formatTimestamp(secs);
+      input.classList.remove('invalid');
+      updateTimestamp(id, input.value, input);
+    } else {
+      input.classList.add('invalid');
+      setTimeout(() => input.classList.remove('invalid'), 1200);
+    }
+  }
+
+  function deleteLine(id) {
+    stopAll();
+    lines = lines.filter(l => l.id !== id);
+    renderLines();
+  }
+
+  function moveLine(id, dir) {
+    const idx = lines.findIndex(l => l.id === id);
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= lines.length) return;
+    [lines[idx], lines[newIdx]] = [lines[newIdx], lines[idx]];
+    renderLines();
+  }
+
+  function moveLineToIndex(id, input) {
+    const srcIdx = lines.findIndex(l => l.id === id);
+    let tgtIdx = Math.max(0, Math.min(lines.length - 1, parseInt(input.value) - 1));
+    if (tgtIdx === srcIdx) { renderLines(); return; }
+    const [removed] = lines.splice(srcIdx, 1);
+    lines.splice(tgtIdx, 0, removed);
+    renderLines();
+  }
+
+  // ─── Drag & Drop ──────────────────────────────────────────────────────────
+
+  let dragSrcId = null;
+  function onDragStart(e) { dragSrcId = parseFloat(this.dataset.id); this.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; }
+  function onDragOver(e)  { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; this.classList.add('drag-over'); }
+  function onDragLeave()  { this.classList.remove('drag-over'); }
+  function onDrop(e) {
+    e.preventDefault(); this.classList.remove('drag-over');
+    const targetId = parseFloat(this.dataset.id);
+    if (dragSrcId === targetId) return;
+    const si = lines.findIndex(l => l.id === dragSrcId);
+    const ti = lines.findIndex(l => l.id === targetId);
+    const [rem] = lines.splice(si, 1);
+    lines.splice(ti, 0, rem);
+    renderLines();
+  }
+  function onDragEnd() {
+    this.classList.remove('dragging');
+    document.querySelectorAll('.line-card').forEach(c => c.classList.remove('drag-over'));
+  }
+
+  // ─── Playback ─────────────────────────────────────────────────────────────
+
+  function stopAudio() {
+    synth.cancel();
+    if (playingCard !== null) resetCard(playingCard);
+  }
+
+  function playLine(id) {
+    stopAudio();
+    const line = lines.find(l => l.id === id);
+    if (!line || !line.text.trim()) return;
+
+    const utterance = new SpeechSynthesisUtterance(line.text);
+    const freshVoices = synth.getVoices();
+    const voice = freshVoices.find(v => v.name === selectedVoiceName);
+    if (voice) utterance.voice = voice;
+    utterance.rate  = parseFloat(rateSlider.value);
+    utterance.pitch = parseFloat(pitchSlider.value);
+
+    const card = document.getElementById(`card-${id}`);
+    const btn  = document.getElementById(`btn-${id}`);
+    const wave = document.getElementById(`wave-${id}`);
+    card.classList.add('playing');
+    btn.classList.add('active'); btn.textContent = '■';
+    wave.classList.add('show');
+    setStatus(`Speaking line ${lines.findIndex(l => l.id === id) + 1}...`, 'active');
+
+    currentUtterance = utterance;
+    playingCard = id;
+    utterance.onend   = () => resetCard(id);
+    utterance.onerror = () => resetCard(id);
+    synth.speak(utterance);
+  }
+
+  function resetCard(id) {
+    const card = document.getElementById(`card-${id}`);
+    const btn  = document.getElementById(`btn-${id}`);
+    const wave = document.getElementById(`wave-${id}`);
+    if (card) card.classList.remove('playing');
+    if (btn)  { btn.classList.remove('active'); btn.textContent = '▶'; }
+    if (wave) wave.classList.remove('show');
+    if (!timelineRunning) setStatus('Ready', '');
+    playingCard = null;
+  }
+
+  function stopAll() {
+    stopAudio();
+    if (timelineRunning) stopTimeline();
+  }
+
+  function setStatus(msg, cls) {
+    const el = document.getElementById('statusText');
+    el.textContent = msg;
+    el.className = 'timeline-status' + (cls ? ' ' + cls : '');
+  }
+
+  // ─── Timeline ─────────────────────────────────────────────────────────────
+
+  let timelineRunning = false;
+  let timelineStart   = null;
+  let timelineTimers  = [];
+  let clockInterval   = null;
+
+  function toggleTimeline() {
+    timelineRunning ? stopTimeline() : startTimeline();
+  }
+
+  function startTimeline() {
+    const scheduled = lines
+      .map(l => ({ ...l, secs: parseTimestamp(l.timestamp) }))
+      .filter(l => l.secs !== null)
+      .sort((a, b) => a.secs - b.secs);
+
+    if (!scheduled.length) {
+      setStatus('No valid timestamps — add M:SS to cards first', 'tl-active');
+      return;
+    }
+
+    synth.cancel();
+    if (playingCard !== null) resetCard(playingCard);
+
+    timelineRunning = true;
+    timelineStart   = performance.now();
+
+    const btn = document.getElementById('btnTimeline');
+    btn.textContent = '■ Stop Timeline';
+    btn.classList.add('active');
+
+    scheduled.forEach(line => {
+      const t = setTimeout(() => {
+        if (!timelineRunning) return;
+        playLine(line.id);
+        setStatus(`@ ${line.timestamp} — line ${lines.findIndex(l => l.id === line.id) + 1}`, 'tl-active');
+      }, line.secs * 1000);
+      timelineTimers.push(t);
+    });
+
+    const lastSecs = scheduled[scheduled.length - 1].secs;
+    timelineTimers.push(setTimeout(() => stopTimeline(), (lastSecs + 10) * 1000));
+    clockInterval = setInterval(updateClock, 100);
+  }
+
+  function stopTimeline() {
+    timelineRunning = false;
+    timelineTimers.forEach(clearTimeout);
+    timelineTimers = [];
+    clearInterval(clockInterval);
+    clockInterval = null;
+    synth.cancel();
+    if (playingCard !== null) resetCard(playingCard);
+    const btn = document.getElementById('btnTimeline');
+    btn.textContent = '▶ Run Timeline';
+    btn.classList.remove('active');
+    document.getElementById('timelineClock').classList.remove('running');
+    setStatus('Ready', '');
+  }
+
+  function resetTimeline() {
+    stopTimeline();
+    document.getElementById('timelineClock').textContent = '0:00.0';
+  }
+
+  function updateClock() {
+    const elapsed = (performance.now() - timelineStart) / 1000;
+    const m = Math.floor(elapsed / 60);
+    const s = elapsed % 60;
+    document.getElementById('timelineClock').textContent =
+      `${m}:${String(Math.floor(s)).padStart(2,'0')}.${Math.floor((s % 1) * 10)}`;
+    document.getElementById('timelineClock').classList.add('running');
+  }
+
+  // ─── Export JSON ──────────────────────────────────────────────────────────
+
+  function exportJSON() {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      voice: selectedVoiceName,
+      rate:  parseFloat(rateSlider.value),
+      pitch: parseFloat(pitchSlider.value),
+      lines: lines.map((l, i) => ({
+        index: i + 1,
+        timestamp: l.timestamp || null,
+        timestampSeconds: parseTimestamp(l.timestamp),
+        text: l.text
+      }))
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = `script-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ─── Import JSON ──────────────────────────────────────────────────────────
+
+  function importJSON(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+
+        // Accept either a root array or an object with a `lines` array
+        const raw = Array.isArray(data) ? data : (Array.isArray(data.lines) ? data.lines : null);
+        if (!raw) { alert('Invalid JSON — expected an array or an object with a "lines" array.'); return; }
+
+        // Each item needs at least a `text` field. `timestamp` is optional.
+        const imported = raw
+          .filter(item => item && typeof item.text === 'string' && item.text.trim())
+          .map(item => ({
+            id: Date.now() + Math.random(),
+            text: item.text.trim(),
+            timestamp: item.timestamp ? String(item.timestamp).trim() : ''
+          }));
+
+        if (!imported.length) { alert('No valid lines found. Each entry needs at least a "text" field.'); return; }
+
+        stopAll();
+        lines = imported;
+        renderLines();
+        setStatus(`Imported ${imported.length} line${imported.length !== 1 ? 's' : ''}`, '');
+      } catch {
+        alert('Could not parse JSON — make sure the file is valid JSON.');
+      }
+      // Reset input so the same file can be re-imported if needed
+      input.value = '';
+    };
+    reader.readAsText(file);
+  }
+
+  function clearScript() {
+    if (!lines.length) return;
+    if (!confirm('Clear all script lines? This cannot be undone.')) return;
+    stopAll();
+    lines = [];
+    renderLines();
+    setStatus('Script cleared', '');
+  }
+
+  // ─── Keyboard shortcut ────────────────────────────────────────────────────
+
+  document.getElementById('addInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); addLine(); }
+  });
+
+  // ─── Pre-loaded script ────────────────────────────────────────────────────
+  // (empty — use Import JSON, Load Demo, or add lines manually)
+
+  // ─── Demo script ──────────────────────────────────────────────────────────
+
+  function loadDemo() {
+    if (lines.length && !confirm('Replace current script with the demo?')) return;
+    stopAll();
+    lines = [];
+    [
+      { text: "Steve Jobs was given up for adoption at birth, and that sense of being chosen — yet abandoned — shaped everything he became.", ts: '0:00' },
+      { text: "He dropped out of Reed College after one semester, but kept sneaking back to audit classes, including a calligraphy course that would later define the Mac's beautiful typography.", ts: '0:12' },
+      { text: "In a garage in Los Altos, Steve Jobs and Steve Wozniak built the Apple I by hand and sold it for six hundred and sixty six dollars.", ts: '0:30' },
+      { text: "Jobs had a reality distortion field — an ability to bend people's perception of what was possible simply through the force of his will and his certainty.", ts: '0:46' },
+      { text: "He was fired from Apple in nineteen eighty five, the company he had co-founded. He called it the best thing that could have ever happened to him.", ts: '1:02' },
+      { text: "At NeXT and Pixar, Jobs learned patience — and how to build a culture where art and engineering were treated as the same discipline.", ts: '1:18' },
+      { text: "When he returned to Apple in nineteen ninety seven, the company had ninety days of cash left. Within a decade, it would become the most valuable company on earth.", ts: '1:34' },
+      { text: "The iPod was not just a product — it was a declaration that a thousand songs in your pocket was a fundamental human right.", ts: '1:52' },
+      { text: "He obsessed over things most people never saw — the inside of a circuit board, the curve of a bezel, the exact shade of a gray that no one would consciously notice but everyone would feel.", ts: '2:06' },
+      { text: "Near the end, he told his biographer: I want my kids to know who I am. I wasn't always there for them, and I wanted them to understand why.", ts: '2:26' },
+    ].forEach(l => addLine(l.text, l.ts));
+    setStatus('Demo script loaded — 10 lines', '');
+  }
+</script>
+</body>
+</html>
